@@ -9,14 +9,26 @@ from smbus2 import SMBus            # I2C 통신 모듈
 from mlx90614 import mlx90614       # MLX90614 센서 모듈
 
 
-def printStatusMessage(total_cycle, pelt_pwmOff, fan_pinState) :
-     # 상태메시지 출력
-    print("Cooling start")
-    print("current cycle : ", str(total_cycle), "peltier module PWM : ", str(pelt_pwmOff), "   fan state : ", str(fan_pinState))
+def printStatusMessage(total_cycle, fan_pinState, mode) :
+    
+    # 상태메시지 출력
+
+    if mode == 1:
+        print("denaturation complete")
+    elif mode == 2:
+        print("primer annealing complete")
+    elif mode == 3:
+        print("primer extension complete")
+    else:
+        print("unexpected mode")
+        
+    print("current cycle : ", str(total_cycle), "   fan state : ", str(fan_pinState))
 
 
 def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
     
+    global pwm_value
+
     error = goal_temp - current_temp # 목표온도 - 현재온도
     error_max = 94 - 25  # PCR과정 중 온도차의 최대값 [DNA denaturation temp - 상온]
     temp_range = 110 - 25  # 펠티어 온도 최대값 - 최솟값
@@ -60,6 +72,8 @@ try:
     
     pelt_pwm = GPIO.PWM(pelt_pinNo, 100)        # 펠티어모듈 PWM 설정
     pelt_pwm.start(0)           # 초기 펠티어모듈 PWM 0으로 시작
+    global pwm_value            # PWM 수치 글로벌 변수로 선언
+    pwm_value = 0
 
 
     I2C_adress = 0x5A       # I2C Bus의 mlx센서 주소 값
@@ -91,27 +105,67 @@ try:
 
 
         # PCR단계에 따른 목표온도 설정
-        if step_now == 1:
-            # denaturation 단계 / 94도 까지 가열
+        if step_now == 1: # denaturation 단계 -------------------------------
+
+            # 94도 까지 가열
             tempControlByPWM(current_temp, 94, pelt_pwm, 'heating')
-            if step_time == 4:
+
+            # denaturation 완료
+            if step_time == 4:  
+
+                # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
                 step_time = 0
                 step_now = 2
-        elif step_now == 2:
-            # primer annealing 단계 / 50도 까지 냉각
+
+                # 펜 on 설정
+                fan_pinState = True
+                GPIO.output(fan_pinNo, fan_pinState)
+
+                # 상태메세지 출력
+                printStatusMessage(total_cycle, fan_pinState, 1)
+
+        elif step_now == 2:  #primer annealing 단계 -------------------------
+
+            # 50도 까지 냉각
             tempControlByPWM(current_temp, 50, pelt_pwm, 'cooling')
-            if step_time == 4:
+
+            # primer annealing 완료
+            if step_time == 4:  
+
+                # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
                 step_time = 0
                 step_now = 3
-        elif step_now == 3:
-            # primer extension 단계 / 70도 까지 가열
+
+                # 펜 off 설정
+                fan_pinState = False
+                GPIO.output(fan_pinNo, fan_pinState)
+
+                # 상태메세지 출력
+                printStatusMessage(total_cycle, fan_pinState, 2)
+
+        elif step_now == 3:  # primer extension 단계 ------------------------
+
+            # 70도 까지 가열
             tempControlByPWM(current_temp, 70, pelt_pwm, 'heating')
-            if step_time == 4:
+
+            # primer extension 완료
+            if step_time == 8:
+
+                # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
                 step_time = 0
                 step_now = 1
+
+                # 펜 off 설정
+                fan_pinState = False
+                GPIO.output(fan_pinNo, fan_pinState)
+
+                # 상태메세지 출력
+                printStatusMessage(total_cycle, fan_pinState, 3)
+
+                # 사이클 수 +1
                 total_cycle = total_cycle + 1
         else:
             print("unexpected situation occurs")
