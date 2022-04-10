@@ -115,35 +115,6 @@ try:
                 total_cycle = total_cycle + 1
         else:
             print("unexpected situation occurs")
-
-
-        # # 온도가 상한선을 넘어갔을 때 cooling 시작
-        # if current_temp > tempOn and not fan_pinState:  
-        #     # 펠티어 pwm off 설정
-        #     pelt_pwm.ChangeDutyCycle(pelt_pwmOff)
-        #     # 펜 off 설정
-        #     fan_pinState = not fan_pinState
-        #     GPIO.output(fan_pinNo, fan_pinState)
-        #     # 상태메시지 출력
-        #     print("Cooling start")
-        #     print("current cycle : ", str(total_cycle), "peltier module PWM : ", str(pelt_pwmOff), "   fan state : ", str(fan_pinState))
-
-        # # 온도가 하한선을 넘어갔을 때 heating 시작
-        # elif current_temp < tempOff and fan_pinState:
-        #     # 사이클 수 +1
-        #     total_cycle = total_cycle + 1
-        #     # 사이클 30 초과시 반복문 중단
-        #     if total_cycle == 31:
-        #         print("thermal cycle complete")
-        #         break
-        #     # 펠티어 pwm on 설정
-        #     pelt_pwm.ChangeDutyCycle(pelt_pwmOn)
-        #     # 펜 on 설정
-        #     fan_pinState = not fan_pinState
-        #     GPIO.output(fan_pinNo, fan_pinState)
-        #     # 상태메시지 출력
-        #     print("Heating start")
-        #     print("current cycle : ", str(total_cycle), "peltier module PWM : ", str(pelt_pwmOn), "   fan state : ", str(fan_pinState))
         
         sleep(0.01)      # 반복문 0.01초 주기
 
