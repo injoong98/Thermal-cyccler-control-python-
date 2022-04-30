@@ -29,19 +29,17 @@ def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
     
     global pwm_value
 
-    error = goal_temp - current_temp # 목표온도 - 현재온도
-    error_max = 94 - 25  # PCR과정 중 온도차의 최대값 [DNA denaturation temp - 상온]
-    temp_range = 110 - 25  # 펠티어 온도 최대값 - 최솟값
+    gain = 5    # P제어의 gain 값
+    error = goal_temp - current_temp    # P제어의 error값(목표온도 - 현재온도)
 
-    goal_pwm = (goal_temp - 25) / temp_range * 100  # 목표 PWM 수치 [목표온도가 25도이면 PWM 0, 110도이면 PWM 100]
+    pwm_value = gain * error
 
-    if mode == "heating":
-        pwm_value = goal_pwm + (100 - goal_pwm) * (error / error_max) # heating시 PWM 값 [error가 크면 클수록 목표 PWM 수치보다 더 큰 값을 입력]
-    elif mode == "cooling":
-        pwm_value = goal_pwm * (1 + (error / error_max)) # cooling시 PWM 값 [error가 크면 클수록 목표 PWM 수치보다 더 낮은 값을 입력]
+    if pwm_value > 60:      # pwm 상한치
+        pwm_value = 60
+    elif pwm_value < 0:      # pwm 결과값이 음수일경우 0 입력(= 펠티어 작동 중지) 
+        pwm_value = 0
 
     pelt_pwm.ChangeDutyCycle(pwm_value)
-
 
     global step_flag
     global step_time
