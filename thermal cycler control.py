@@ -132,7 +132,7 @@ try:
 
 
     global excelData
-    excelData = {[],[],[],[],[],[],[]}
+    excelData = [[],[],[],[],[],[],[]]
 
 
     while True:
