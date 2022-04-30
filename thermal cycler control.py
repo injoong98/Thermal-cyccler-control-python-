@@ -8,6 +8,46 @@ from time import sleep
 from smbus2 import SMBus            # I2C 통신 모듈
 from mlx90614 import mlx90614       # MLX90614 센서 모듈
 
+import pandas as pd                 # 엑셀파일 저장 모듈
+from datetime import datetime       # 날짜 모듈
+
+
+
+def saveExcelData() :
+
+    # excel 데이터 저장
+
+    global excelData
+
+    now = datetime.now()    # 현재시각 불러오기
+    excelTitle = 'Thermal Cycler Test_' + now.strftime('%Y-%m-%d %H:%M:%S')+'_gain='+gain+'.xlsx'   # 엑셀 제목(날짜 & p제어 게인 표시)
+
+    excelDataForSave = {        # 리스트 형태 선언
+        'cycle_count' : excelData[0],
+        'step' : excelData[1],
+        'goal_temperature' : excelData[2],
+        'current_temperature' : excelData[3],
+        'pwm_input' : excelData[4],
+        'fan_state' : excelData[5],
+        'step_time' : excelData[6]
+    }
+    
+    dataFrame = pd.DataFrame(excelDataForSave)      # 데이터 프레임으로 전환
+    dataFrame.to_excel(excel_writer=excelTitle)     # 엑셀로 저장
+
+
+def pushExcelData(a,b,c,d,e,f,g) :
+
+    # excel 데이터 추가
+
+    global excelData
+
+    variableArray = [a,b,c,d,e,f,g]
+
+    for i in range(0,len(variableArray)-1):
+        excelData[i].append(variableArray[i])
+
+
 
 def printStatusMessage(total_cycle, fan_pinState, mode) :
     
@@ -28,8 +68,8 @@ def printStatusMessage(total_cycle, fan_pinState, mode) :
 def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
     
     global pwm_value
+    global gain
 
-    gain = 5    # P제어의 gain 값
     error = goal_temp - current_temp    # P제어의 error값(목표온도 - 현재온도)
 
     pwm_value = gain * error
@@ -53,8 +93,7 @@ def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
 
 
 try:
-    tempOn = 90         # Cooling 시작 기준점 온도
-    tempOff = 60         # Heating 시작 기준점 온도
+    goal_temp_array = [94,50,70]
 
     fan_pinNo = 14      # 펜 pin 번호
     fan_pinState = False    # 펜 작동상태
@@ -71,6 +110,8 @@ try:
     pelt_pwm = GPIO.PWM(pelt_pinNo, 100)        # 펠티어모듈 PWM 설정
     pelt_pwm.start(0)           # 초기 펠티어모듈 PWM 0으로 시작
     global pwm_value            # PWM 수치 글로벌 변수로 선언
+    global gain                 # P제어 gain 값 글로벌 변수 선언
+    gain = 5                    # P제어 gain 값 설정
     pwm_value = 0
 
 
@@ -88,6 +129,12 @@ try:
     step_flag = False
 
 
+
+
+    global excelData
+    excelData = {[],[],[],[],[],[],[]}
+
+
     while True:
 
         # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
@@ -98,6 +145,7 @@ try:
 
         # 30사이클 도달 시 반복문 중단
         if total_cycle == 30:
+            saveExcelData()     # 엑셀데이터 저장
             print("thermal cycle complete")
             break
 
@@ -106,7 +154,7 @@ try:
         if step_now == 1: # denaturation 단계 -------------------------------
 
             # 94도 까지 가열
-            tempControlByPWM(current_temp, 94, pelt_pwm, 'heating')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
 
             # denaturation 완료
             if step_time == 4:  
@@ -126,7 +174,7 @@ try:
         elif step_now == 2:  #primer annealing 단계 -------------------------
 
             # 50도 까지 냉각
-            tempControlByPWM(current_temp, 50, pelt_pwm, 'cooling')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling')
 
             # primer annealing 완료
             if step_time == 4:  
@@ -146,7 +194,7 @@ try:
         elif step_now == 3:  # primer extension 단계 ------------------------
 
             # 70도 까지 가열
-            tempControlByPWM(current_temp, 70, pelt_pwm, 'heating')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
 
             # primer extension 완료
             if step_time == 8:
@@ -168,9 +216,14 @@ try:
         else:
             print("unexpected situation occurs")
         
+
+        pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간)
+
+
         sleep(0.01)      # 반복문 0.01초 주기
 
 except KeyboardInterrupt:
+    saveExcelData()     # 엑셀데이터 저장
     print("Exit pressed Ctrl+C")
 
 finally:
