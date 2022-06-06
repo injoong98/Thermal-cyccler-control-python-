@@ -1,15 +1,25 @@
 # 쿨링펜 제어 관련 참고자려 링크 : https://blog.naver.com/cosmosjs/222549963664
 # MLX90614 샌서관련 참고자료 링크 : https://blog.naver.com/youseok0/222389919984
 # PWM 제어 관련 참고자료 링크 : https://rasino.tistory.com/328
-
+import sys
+sys.path.insert(0,'/home/pi/PyMLX90614-0.0.3')
+import datetime
+import smbus           # I2C 통신 모듈
+from mlx90614 import MLX90614
+import adafruit_mlx90614
+import board
+import busio
+import digitalio
+import spidev
+import RPi.GPIO as GPIO
+import os
 import RPi.GPIO as GPIO
 from time import sleep
-
-from smbus2 import SMBus            # I2C 통신 모듈
 from mlx90614 import mlx90614       # MLX90614 센서 모듈
 
 import pandas as pd                 # 엑셀파일 저장 모듈
 from datetime import datetime       # 날짜 모듈
+from openpyxl import Workbook
 
 
 
@@ -20,7 +30,7 @@ def saveExcelData() :
     global excelData
 
     now = datetime.now()    # 현재시각 불러오기
-    excelTitle = 'Thermal Cycler Test_' + now.strftime('%Y-%m-%d %H:%M:%S')+'_gain='+gain+'.xlsx'   # 엑셀 제목(날짜 & p제어 게인 표시)
+    excelTitle = 'Thermal Cycler Test_' + now.strftime('%Y-%m-%d %H:%M:%S')+'_gain='+str(gain)+'.xlsx'   # 엑셀 제목(날짜 & p제어 게인 표시)
 
     excelDataForSave = {        # 리스트 형태 선언
         'cycle_count' : excelData[0],
@@ -31,9 +41,13 @@ def saveExcelData() :
         'fan_state' : excelData[5],
         'step_time' : excelData[6]
     }
+    print(excelDataForSave)
+    
     
     dataFrame = pd.DataFrame(excelDataForSave)      # 데이터 프레임으로 전환
-    dataFrame.to_excel(excel_writer=excelTitle)     # 엑셀로 저장
+    #with pd.ExcelWriter(excelTitle) as writer:
+
+    dataFrame.to_excel(excelTitle, index=False)     # 엑셀로 저장
 
 
 def pushExcelData(a,b,c,d,e,f,g) :
@@ -43,8 +57,8 @@ def pushExcelData(a,b,c,d,e,f,g) :
     global excelData
 
     variableArray = [a,b,c,d,e,f,g]
-
-    for i in range(0,len(variableArray)-1):
+    
+    for i in range(0,len(variableArray)):
         excelData[i].append(variableArray[i])
 
 
@@ -73,6 +87,7 @@ def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
     error = goal_temp - current_temp    # P제어의 error값(목표온도 - 현재온도)
 
     pwm_value = gain * error
+    pwm_value = round(pwm_value, 2)
 
     if pwm_value > 60:      # pwm 상한치
         pwm_value = 60
@@ -85,21 +100,28 @@ def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
     global step_time
 
     # 목표온도 도달 시 step_flag로 표시한 뒤 지속시간 체크
-    if current_temp == goal_temp and step_flag == False:
-        step_flag = True
-    elif step_flag == ture:
-        step_time = step_time + 0.01
+    if mode == 'heating':
+        if current_temp > goal_temp-1 and step_flag == False:
+            step_flag = True
+        elif step_flag == True:
+            step_time = step_time + 0.1
+    elif mode == 'cooling':
+        if current_temp < goal_temp+1 and step_flag == False:
+            step_flag = True
+        elif step_flag == True:
+            step_time = step_time + 0.1
+        
 
 
 
 try:
-    goal_temp_array = [94,50,70]
+    goal_temp_array = [94,65,70]
 
-    fan_pinNo = 14      # 펜 pin 번호
+    fan_pinNo = 20      # 펜 pin 번호
     fan_pinState = False    # 펜 작동상태
 
-    pelt_pinNo = 18         # 펠티어모듈 pin 번호
-    pelt_pwmOn = 70          # Heating 시 펠티어모듈의 PWM 수치
+    pelt_pinNo = 12         # 펠티어모듈 pin 번호
+    pelt_pwmOn = 60          # Heating 시 펠티어모듈의 PWM 수치
     pelt_pwmOff = 0          # Cooling 시 펠티어모듈의 PWM 수치
 
     # GPIO 핀 번호 세팅
@@ -111,13 +133,13 @@ try:
     pelt_pwm.start(0)           # 초기 펠티어모듈 PWM 0으로 시작
     global pwm_value            # PWM 수치 글로벌 변수로 선언
     global gain                 # P제어 gain 값 글로벌 변수 선언
-    gain = 5                    # P제어 gain 값 설정
+    gain = 50                    # P제어 gain 값 설정
     pwm_value = 0
 
 
     I2C_adress = 0x5A       # I2C Bus의 mlx센서 주소 값
-    bus = SMBus(1)          # I2C 버스 설정
-    sensor = mlx90614(bus, address=I2C_adress)          # mlx센서 통신 설정
+    bus = smbus.SMBus(1)         # I2C 버스 설정
+    sensor = MLX90614(bus, address = 0x5A)        # mlx센서 통신 설정
     
     total_cycle = 0         # 총 사이클 진행 수
 
@@ -138,13 +160,13 @@ try:
     while True:
 
         # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
-        print("Object Temperature :", sensor.get_object_1())        # 대상물체온도 출력
+        print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "time : ", step_time)        # 대상물체온도 출력
 
         current_temp = sensor.get_object_1()    # 현재 대상온도 값
 
 
         # 30사이클 도달 시 반복문 중단
-        if total_cycle == 30:
+        if total_cycle == 1:
             saveExcelData()     # 엑셀데이터 저장
             print("thermal cycle complete")
             break
@@ -157,7 +179,7 @@ try:
             tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
 
             # denaturation 완료
-            if step_time == 4:  
+            if step_time > 3:  
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -177,7 +199,7 @@ try:
             tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling')
 
             # primer annealing 완료
-            if step_time == 4:  
+            if step_time > 3:  
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -197,7 +219,7 @@ try:
             tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
 
             # primer extension 완료
-            if step_time == 8:
+            if step_time > 3:
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -220,7 +242,7 @@ try:
         pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간)
 
 
-        sleep(0.01)      # 반복문 0.01초 주기
+        sleep(0.1)      # 반복문 0.01초 주기
 
 except KeyboardInterrupt:
     saveExcelData()     # 엑셀데이터 저장
