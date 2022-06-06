@@ -39,7 +39,8 @@ def saveExcelData() :
         'current_temperature' : excelData[3],
         'pwm_input' : excelData[4],
         'fan_state' : excelData[5],
-        'step_time' : excelData[6]
+        'step_time' : excelData[6],
+        'total_time' : excelData[7]
     }
     print(excelDataForSave)
     
@@ -50,13 +51,13 @@ def saveExcelData() :
     dataFrame.to_excel(excelTitle, index=False)     # 엑셀로 저장
 
 
-def pushExcelData(a,b,c,d,e,f,g) :
+def pushExcelData(a,b,c,d,e,f,g,h) :
 
     # excel 데이터 추가
 
     global excelData
 
-    variableArray = [a,b,c,d,e,f,g]
+    variableArray = [a,b,c,d,e,f,g,h]
     
     for i in range(0,len(variableArray)):
         excelData[i].append(variableArray[i])
@@ -79,7 +80,7 @@ def printStatusMessage(total_cycle, fan_pinState, mode) :
     print("current cycle : ", str(total_cycle), "   fan state : ", str(fan_pinState))
 
 
-def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
+def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode, control_term) :
     
     global pwm_value
     global gain
@@ -104,18 +105,19 @@ def tempControlByPWM(current_temp, goal_temp, pelt_pwm, mode) :
         if current_temp > goal_temp-1 and step_flag == False:
             step_flag = True
         elif step_flag == True:
-            step_time = step_time + 0.1
+            step_time = step_time + control_term
     elif mode == 'cooling':
         if current_temp < goal_temp+1 and step_flag == False:
             step_flag = True
         elif step_flag == True:
-            step_time = step_time + 0.1
+            step_time = step_time + control_term
         
 
 
 
 try:
-    goal_temp_array = [94,65,70]
+    goal_temp_array = [94,50,70]    # 각 단계별 목표온도
+    goal_step_time = [3,3,3]        # 각 단계별 온도유지시간
 
     fan_pinNo = 20      # 펜 pin 번호
     fan_pinState = False    # 펜 작동상태
@@ -151,16 +153,19 @@ try:
     step_flag = False
 
 
+    total_time = 0          # 전체시간
+    control_term = 0.01      # 반복문 시간간격
+
 
 
     global excelData
-    excelData = [[],[],[],[],[],[],[]]
+    excelData = [[],[],[],[],[],[],[],[]]
 
 
     while True:
 
         # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
-        print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "time : ", step_time)        # 대상물체온도 출력
+        print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
 
         current_temp = sensor.get_object_1()    # 현재 대상온도 값
 
@@ -176,10 +181,10 @@ try:
         if step_now == 1: # denaturation 단계 -------------------------------
 
             # 94도 까지 가열
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
 
             # denaturation 완료
-            if step_time > 3:  
+            if step_time > goal_step_time[0]:  
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -196,10 +201,10 @@ try:
         elif step_now == 2:  #primer annealing 단계 -------------------------
 
             # 50도 까지 냉각
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling', control_term)
 
             # primer annealing 완료
-            if step_time > 3:  
+            if step_time > goal_step_time[1]:  
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -216,10 +221,10 @@ try:
         elif step_now == 3:  # primer extension 단계 ------------------------
 
             # 70도 까지 가열
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating')
+            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
 
             # primer extension 완료
-            if step_time > 3:
+            if step_time > goal_step_time[2]:
 
                 # step관련 변수들 초기화 & 다음 step 지정
                 step_flag = False
@@ -239,10 +244,10 @@ try:
             print("unexpected situation occurs")
         
 
-        pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간)
+        total_time = total_time + control_term
+        pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time,total_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간, 전체시간)
 
-
-        sleep(0.1)      # 반복문 0.01초 주기
+        sleep(control_term)      # 반복문 0.01초 주기
 
 except KeyboardInterrupt:
     saveExcelData()     # 엑셀데이터 저장
