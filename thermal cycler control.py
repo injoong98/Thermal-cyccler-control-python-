@@ -162,92 +162,171 @@ try:
     excelData = [[],[],[],[],[],[],[],[]]
 
 
-    while True:
+    select_step = int(input("원하는 스텝 수를 입력해주세요(2 or 3) : "))
 
-        # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
-        print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
+    if select_step == 3:
 
-        current_temp = sensor.get_object_1()    # 현재 대상온도 값
+        while True:
 
+            # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
+            print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
 
-        # 30사이클 도달 시 반복문 중단
-        if total_cycle == 1:
-            saveExcelData()     # 엑셀데이터 저장
-            print("thermal cycle complete")
-            break
+            current_temp = sensor.get_object_1()    # 현재 대상온도 값
 
 
-        # PCR단계에 따른 목표온도 설정
-        if step_now == 1: # denaturation 단계 -------------------------------
+            # 30사이클 도달 시 반복문 중단
+            if total_cycle == 1:
+                saveExcelData()     # 엑셀데이터 저장
+                print("thermal cycle complete")
+                break
 
-            # 94도 까지 가열
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
 
-            # denaturation 완료
-            if step_time > goal_step_time[0]:  
+            # PCR단계에 따른 목표온도 설정
+            if step_now == 1: # denaturation 단계 -------------------------------
 
-                # step관련 변수들 초기화 & 다음 step 지정
-                step_flag = False
-                step_time = 0
-                step_now = 2
+                # 94도 까지 가열
+                tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
 
-                # 펜 on 설정
-                fan_pinState = True
-                GPIO.output(fan_pinNo, fan_pinState)
+                # denaturation 완료
+                if step_time > goal_step_time[0]:  
 
-                # 상태메세지 출력
-                printStatusMessage(total_cycle, fan_pinState, 1)
+                    # step관련 변수들 초기화 & 다음 step 지정
+                    step_flag = False
+                    step_time = 0
+                    step_now = 2
 
-        elif step_now == 2:  #primer annealing 단계 -------------------------
+                    # 펜 on 설정
+                    fan_pinState = True
+                    GPIO.output(fan_pinNo, fan_pinState)
 
-            # 50도 까지 냉각
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling', control_term)
+                    # 상태메세지 출력
+                    printStatusMessage(total_cycle, fan_pinState, 1)
 
-            # primer annealing 완료
-            if step_time > goal_step_time[1]:  
+            elif step_now == 2:  #primer annealing 단계 -------------------------
 
-                # step관련 변수들 초기화 & 다음 step 지정
-                step_flag = False
-                step_time = 0
-                step_now = 3
+                # 50도 까지 냉각
+                tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling', control_term)
 
-                # 펜 off 설정
-                fan_pinState = False
-                GPIO.output(fan_pinNo, fan_pinState)
+                # primer annealing 완료
+                if step_time > goal_step_time[1]:  
 
-                # 상태메세지 출력
-                printStatusMessage(total_cycle, fan_pinState, 2)
+                    # step관련 변수들 초기화 & 다음 step 지정
+                    step_flag = False
+                    step_time = 0
+                    step_now = 3
 
-        elif step_now == 3:  # primer extension 단계 ------------------------
+                    # 펜 off 설정
+                    fan_pinState = False
+                    GPIO.output(fan_pinNo, fan_pinState)
 
-            # 70도 까지 가열
-            tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
+                    # 상태메세지 출력
+                    printStatusMessage(total_cycle, fan_pinState, 2)
 
-            # primer extension 완료
-            if step_time > goal_step_time[2]:
+            elif step_now == 3:  # primer extension 단계 ------------------------
 
-                # step관련 변수들 초기화 & 다음 step 지정
-                step_flag = False
-                step_time = 0
-                step_now = 1
+                # 70도 까지 가열
+                tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
 
-                # 펜 off 설정
-                fan_pinState = False
-                GPIO.output(fan_pinNo, fan_pinState)
+                # primer extension 완료
+                if step_time > goal_step_time[2]:
 
-                # 상태메세지 출력
-                printStatusMessage(total_cycle, fan_pinState, 3)
+                    # step관련 변수들 초기화 & 다음 step 지정
+                    step_flag = False
+                    step_time = 0
+                    step_now = 1
 
-                # 사이클 수 +1
-                total_cycle = total_cycle + 1
-        else:
-            print("unexpected situation occurs")
-        
+                    # 펜 off 설정
+                    fan_pinState = False
+                    GPIO.output(fan_pinNo, fan_pinState)
 
-        total_time = total_time + control_term
-        pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time,total_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간, 전체시간)
+                    # 상태메세지 출력
+                    printStatusMessage(total_cycle, fan_pinState, 3)
 
-        sleep(control_term)      # 반복문 0.01초 주기
+                    # 사이클 수 +1
+                    total_cycle = total_cycle + 1
+            else:
+                print("unexpected situation occurs")
+            
+
+            total_time = total_time + control_term
+            pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time,total_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간, 전체시간)
+
+            sleep(control_term)      # 반복문 0.01초 주기
+
+
+
+    elif select_step == 2:
+
+        while True:
+
+            # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
+            print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
+
+            current_temp = sensor.get_object_1()    # 현재 대상온도 값
+
+
+            # 30사이클 도달 시 반복문 중단
+            if total_cycle == 1:
+                saveExcelData()     # 엑셀데이터 저장
+                print("thermal cycle complete")
+                break
+
+
+            # PCR단계에 따른 목표온도 설정
+            if step_now == 1: # denaturation 단계 -------------------------------
+
+                # 94도 까지 가열
+                tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'heating', control_term)
+
+                # denaturation 완료
+                if step_time > goal_step_time[0]:  
+
+                    # step관련 변수들 초기화 & 다음 step 지정
+                    step_flag = False
+                    step_time = 0
+                    step_now = 2
+
+                    # 펜 on 설정
+                    fan_pinState = True
+                    GPIO.output(fan_pinNo, fan_pinState)
+
+                    # 상태메세지 출력
+                    printStatusMessage(total_cycle, fan_pinState, 1)
+
+            elif step_now == 2:  #primer annealing 단계 -------------------------
+
+                # 50도 까지 냉각
+                tempControlByPWM(current_temp, goal_temp_array[step_now-1], pelt_pwm, 'cooling', control_term)
+
+                # primer annealing 완료
+                if step_time > goal_step_time[1]:  
+
+                    # step관련 변수들 초기화 & 다음 step 지정
+                    step_flag = False
+                    step_time = 0
+                    step_now = 1
+
+                    # 펜 off 설정
+                    fan_pinState = False
+                    GPIO.output(fan_pinNo, fan_pinState)
+
+                    # 상태메세지 출력
+                    printStatusMessage(total_cycle, fan_pinState, 2)
+
+                    # 사이클 수 +1
+                    total_cycle = total_cycle + 1
+            else:
+                print("unexpected situation occurs")
+            
+
+            total_time = total_time + control_term
+            pushExcelData(total_cycle,step_now,goal_temp_array[step_now-1],current_temp,pwm_value,fan_pinState,step_time,total_time)   # 엑셀에 현재 데이터 입력(현재 사이클 수, 현재 pcr단계, 목표온도, 현재온도, pwm입력값, fan작동상태, 단계유지시간, 전체시간)
+
+            sleep(control_term)      # 반복문 0.01초 주기
+
+    else:
+        print("스텝 입력값은 2 또는 3만 가능합니다.")
+
 
 except KeyboardInterrupt:
     saveExcelData()     # 엑셀데이터 저장
