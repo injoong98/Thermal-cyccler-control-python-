@@ -46,7 +46,6 @@ def saveExcelData() :
     
     
     dataFrame = pd.DataFrame(excelDataForSave)      # 데이터 프레임으로 전환
-    #with pd.ExcelWriter(excelTitle) as writer:
 
     dataFrame.to_excel(excelTitle, index=False)     # 엑셀로 저장
 
@@ -162,13 +161,16 @@ try:
     excelData = [[],[],[],[],[],[],[],[]]
 
 
-    select_step = int(input("원하는 스텝 수를 입력해주세요(2 or 3) : "))
+    select_step = int(input("원하는 스텝 수를 입력해주세요(2 or 3) : "))    # 스텝 수 입력받기
+
+
+
+########### 3스텝 ###########
 
     if select_step == 3:
 
         while True:
 
-            # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
             print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
 
             current_temp = sensor.get_object_1()    # 현재 대상온도 값
@@ -255,11 +257,12 @@ try:
 
 
 
+########### 2스텝 ###########
+
     elif select_step == 2:
 
         while True:
 
-            # print("Ambient Temperature :", sensor.get_ambient())        # 주변온도 출력
             print("Object Temperature :", round(sensor.get_object_1(),2), "pwm :", pwm_value, "current_step : ", step_now,  "step_time : ", step_time, "total_time : ", total_time)        # 대상물체온도 출력
 
             current_temp = sensor.get_object_1()    # 현재 대상온도 값
